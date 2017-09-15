@@ -3,6 +3,7 @@ import prettytensor as pt
 import numpy as np
 from inception_tensors import *
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 def vectorize_id(idnum, labels_len=256):
 	vec = np.zeros(labels_len)
@@ -10,19 +11,32 @@ def vectorize_id(idnum, labels_len=256):
 	return vec
 
 def random_batch(train_set, num_labels=256, batch_size = 100):
-	idx = list(np.random.choice(len(train_set), batch_size, replace=False))
+	bucket_size = int(np.floor(batch_size / num_labels))
 	batch = []
-	for ii, item in enumerate(train_set):
-		if ii in idx:
-			batch.append(item)
+	for category in train_set:
+		idx = list(np.random.choice(len(category), bucket_size, replace=False))
+
+		for ii, item in enumerate(category):
+			if ii in idx:
+				batch.append(item)
+
+	# print batch[0]
 	paths, names, ids = zip(*batch)
 
 	x_batch = [classify(one) for one in paths]
 	y_batch = [vectorize_id(one, num_labels) for one in ids]
 
-	return x_batch, y_batch
+	return x_batch, y_batch, (paths,)
 
-def train(train_set, labels, transfer_len=2048):
+def split_data(examples, reserved=2):
+	train_set = []
+	test_set = []
+	for category in examples:
+		train_set.append(category[:-reserved])
+		test_set.append(category[-reserved:])
+	return train_set, test_set
+
+def train(examples, labels, transfer_len=2048):
 	# In/out
 	with tf.name_scope('InputArgs'):
 		x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='TransferExample')
@@ -52,8 +66,11 @@ def train(train_set, labels, transfer_len=2048):
 	tr_session.run(tf.global_variables_initializer())
 
 	num_iterations = 100
+
+	train_set, test_set = split_data(examples)
+
 	for ii in range(num_iterations):
-		x_batch, y_true_batch = random_batch(train_set, len(labels), batch_size=4)
+		x_batch, y_true_batch, (img_paths,) = random_batch(train_set, len(labels), batch_size=4)
 
 		train_input = {x: x_batch, y_true: y_true_batch}
 		_ = tr_session.run([train_step], feed_dict=train_input)
@@ -63,10 +80,14 @@ def train(train_set, labels, transfer_len=2048):
 			print len(x_batch), len(batch_results)
 			msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%}"
 			print(msg.format(ii, batch_acc))
+			fig = plt.figure()
 			for jj in range(min(len(batch_results), 4)):
 				res =  batch_results[jj]
 				# print res
 				plt.subplot(2, 2, jj + 1)
-				plt.title(labels[res].name)
+				plt.title('(%d): %s' % (res, labels[res].name))
+				plt.imshow(mpimg.imread(img_paths[jj]))
+			# plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)
+			fig.tight_layout()
 			plt.show()
 			raw_input(':')
