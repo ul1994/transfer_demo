@@ -2,6 +2,7 @@ import tensorflow as tf
 import prettytensor as pt
 import numpy as np
 from inception_tensors import *
+import matplotlib.pyplot as plt
 
 def vectorize_id(idnum, labels_len=256):
 	vec = np.zeros(labels_len)
@@ -62,3 +63,10 @@ def train(train_set, labels, transfer_len=2048):
 			print len(x_batch), len(batch_results)
 			msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%}"
 			print(msg.format(ii, batch_acc))
+			for jj in range(min(len(batch_results), 4)):
+				res =  batch_results[jj]
+				# print res
+				plt.subplot(2, 2, jj + 1)
+				plt.title(labels[res].name)
+			plt.show()
+			raw_input(':')
