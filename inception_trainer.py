@@ -4,18 +4,23 @@ import numpy as np
 from inception_tensors import *
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import datetime as dt
 
 def vectorize_id(idnum, labels_len=256):
 	vec = np.zeros(labels_len)
 	vec[int(idnum) - 1] = 1
 	return vec
 
-def random_batch(train_set, num_labels=256, batch_size = 100):
+def random_batch(train_set, num_labels=256, batch_size = 100, shuffle=True):
 	bucket_size = int(np.floor(batch_size / num_labels))
+	# print 'BUCK', bucket_size, batch_size, num_labels
 	batch = []
 	for category in train_set:
-		idx = list(np.random.choice(len(category), bucket_size, replace=False))
+		if shuffle:
+			idx = list(np.random.choice(len(category), bucket_size, replace=False))
+		else: idx = [index for index, _ in enumerate(category[:bucket_size])]
 
+		# print 'INDEX', idx
 		for ii, item in enumerate(category):
 			if ii in idx:
 				batch.append(item)
@@ -67,27 +72,48 @@ def train(examples, labels, transfer_len=2048):
 
 	num_iterations = 100
 
-	train_set, test_set = split_data(examples)
+	plt.ion()
+	fig = None
+	train_batch_size = 9
+	plotdim = int(np.sqrt(train_batch_size))
+
+	train_set, test_set = split_data(examples, reserved=plotdim)
+
+	t1 = dt.datetime.now()
 
 	for ii in range(num_iterations):
-		x_batch, y_true_batch, (img_paths,) = random_batch(train_set, len(labels), batch_size=4)
+		now = dt.datetime.now()
+		print now, t1
+		elapsed = (now-t1).seconds
+		t1 = dt.datetime.now()
+
+		x_batch, y_true_batch, (img_paths,) = random_batch(train_set, len(labels), batch_size=train_batch_size)
 
 		train_input = {x: x_batch, y_true: y_true_batch}
-		_ = tr_session.run([train_step], feed_dict=train_input)
+		batch_acc, _ = tr_session.run([accuracy, train_step], feed_dict=train_input)
+
+		print 'Train Perf: %.1f%% (%.1fs)' % (batch_acc * 100, elapsed)
 
 		if (ii % 4 == 0) or (ii == num_iterations - 1):
-			batch_acc, batch_results = tr_session.run([accuracy, y_guess_index], feed_dict=train_input)
+			eval_x_batch, eval_y_true_batch, (eval_img_paths,) = random_batch(test_set, len(labels), batch_size=plotdim)
+			eval_x_batch = x_batch + eval_x_batch
+			eval_y_true_batch = y_true_batch + eval_y_true_batch
+			score_input = {x: eval_x_batch, y_true: eval_y_true_batch}
+			eval_img_paths = img_paths + eval_img_paths
+
+			batch_acc, batch_results = tr_session.run([accuracy, y_guess_index], feed_dict=score_input)
+
 			print len(x_batch), len(batch_results)
-			msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%}"
-			print(msg.format(ii, batch_acc))
-			fig = plt.figure()
-			for jj in range(min(len(batch_results), 4)):
-				res =  batch_results[jj]
-				# print res
-				plt.subplot(2, 2, jj + 1)
-				plt.title('(%d): %s' % (res, labels[res].name))
-				plt.imshow(mpimg.imread(img_paths[jj]))
-			# plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)
-			fig.tight_layout()
-			plt.show()
-			raw_input(':')
+			msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%} (%.1fs)"
+			print msg.format(ii, batch_acc, elapsed)
+
+			# fig = plt.figure() if fig is None else fig
+			# fig.clf()
+
+			# for jj in range(len(eval_y_true_batch)):
+			# 	res = batch_results[jj]
+			# 	plt.subplot(plotdim + 1, plotdim, jj + 1)
+			# 	plt.title(('T' if jj >= train_batch_size else '') + '[%d/%d]: %s' % (int(np.argmax(eval_y_true_batch[jj])), res, labels[res].name))
+			# 	plt.imshow(mpimg.imread(eval_img_paths[jj]))
+			# fig.canvas.draw()
+			# plt.pause(0.05)

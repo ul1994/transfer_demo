@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
 	# read labels on food data
 
-	limit_learn_scope = 2
+	limit_learn_scope = 3
 	labels = food.labels()[:limit_learn_scope]
 	examples = []
 	for lbl in labels:
@@ -48,3 +48,5 @@ if __name__ == '__main__':
 	print '# Examples:', transfer_len, len(labels)
 
 	train(examples, labels)
+
+	raw_input('Done:')
